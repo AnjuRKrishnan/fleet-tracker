@@ -3,11 +3,14 @@
 //   sqlc v1.29.0
 // source: trips.sql
 
-package repository
+package db
 
 import (
 	"context"
+	"database/sql"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const getTripByID = `-- name: GetTripByID :one
@@ -16,7 +19,7 @@ FROM trips
 WHERE id = $1
 `
 
-func (q *Queries) GetTripByID(ctx context.Context, id int64) (Trip, error) {
+func (q *Queries) GetTripByID(ctx context.Context, id uuid.UUID) (Trip, error) {
 	row := q.db.QueryRowContext(ctx, getTripByID, id)
 	var i Trip
 	err := row.Scan(
@@ -38,7 +41,7 @@ WHERE vehicle_id = $1
 ORDER BY start_time DESC
 `
 
-func (q *Queries) GetTripsLast24Hours(ctx context.Context, vehicleID int64) ([]Trip, error) {
+func (q *Queries) GetTripsLast24Hours(ctx context.Context, vehicleID uuid.UUID) ([]Trip, error) {
 	rows, err := q.db.QueryContext(ctx, getTripsLast24Hours, vehicleID)
 	if err != nil {
 		return nil, err
@@ -74,12 +77,12 @@ VALUES ($1, $2, $3, $4, $5, $6)
 `
 
 type InsertTripParams struct {
-	ID        int64     `json:"id"`
-	VehicleID int64     `json:"vehicle_id"`
-	StartTime time.Time `json:"start_time"`
-	EndTime   time.Time `json:"end_time"`
-	Mileage   float64   `json:"mileage"`
-	AvgSpeed  float64   `json:"avg_speed"`
+	ID        uuid.UUID       `json:"id"`
+	VehicleID uuid.UUID       `json:"vehicle_id"`
+	StartTime time.Time       `json:"start_time"`
+	EndTime   sql.NullTime    `json:"end_time"`
+	Mileage   sql.NullFloat64 `json:"mileage"`
+	AvgSpeed  sql.NullFloat64 `json:"avg_speed"`
 }
 
 func (q *Queries) InsertTrip(ctx context.Context, arg InsertTripParams) error {
@@ -103,9 +106,9 @@ LIMIT $2 OFFSET $3
 `
 
 type ListTripsByVehicleParams struct {
-	VehicleID int64 `json:"vehicle_id"`
-	Limit     int32 `json:"limit"`
-	Offset    int32 `json:"offset"`
+	VehicleID uuid.UUID `json:"vehicle_id"`
+	Limit     int32     `json:"limit"`
+	Offset    int32     `json:"offset"`
 }
 
 func (q *Queries) ListTripsByVehicle(ctx context.Context, arg ListTripsByVehicleParams) ([]Trip, error) {

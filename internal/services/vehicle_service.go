@@ -2,109 +2,51 @@ package services
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
 	"time"
 
-	"github.com/AnjuRKrishnan/fleet-tracker/internal/model"
-	"github.com/AnjuRKrishnan/fleet-tracker/internal/repository"
-	"github.com/go-redis/redis/v8"
+	"github.com/AnjuRKrishnan/fleet-tracker/internal/domain"
+	"github.com/google/uuid"
 )
 
-const statusCacheTTL = 5 * time.Minute
+const (
+	// CacheDuration defines how long vehicle status is cached.
+	CacheDuration = 5 * time.Minute
+)
 
+// VehicleService encapsulates the business logic for vehicle operations.
 type VehicleService struct {
-	q   *repository.Queries
-	rdb *redis.Client
+	repo  domain.VehicleRepository
+	cache domain.VehicleCache
 }
 
-func NewVehicleService(q *repository.Queries, rdb *redis.Client) *VehicleService {
-	return &VehicleService{q: q, rdb: rdb}
+// NewVehicleService creates a new VehicleService.
+func NewVehicleService(repo domain.VehicleRepository, cache domain.VehicleCache) *VehicleService {
+	return &VehicleService{
+		repo:  repo,
+		cache: cache,
+	}
 }
 
-func (s *VehicleService) cacheKey(vehicleID string) string {
-	return fmt.Sprintf("vehicle:status:%s", vehicleID)
-}
-
-func (s *VehicleService) GetVehicleStatus(ctx context.Context, vehicleID int64) (*model.VehicleStatus, error) {
-	key := s.cacheKey(fmt.Sprint(vehicleID))
-
-	// Try cache first
-	if val, err := s.rdb.Get(ctx, key).Result(); err == nil {
-		var vs model.VehicleStatus
-		if err := json.Unmarshal([]byte(val), &vs); err == nil {
-			return &vs, nil
-		}
-	}
-
-	// Fetch from DB
-	raw, err := s.q.GetVehicleStatus(ctx, vehicleID)
-	if err != nil {
-		return nil, err
-	}
-	if raw == "" {
-		return nil, nil
-	}
-
-	// Convert string to []byte
-	var vs model.VehicleStatus
-	if err := json.Unmarshal([]byte(raw), &vs); err != nil {
-		return nil, err
-	}
-
-	// Save to cache
-	if b, err := json.Marshal(vs); err == nil {
-		_ = s.rdb.Set(ctx, key, b, statusCacheTTL).Err()
-	}
-
-	return &vs, nil
-}
-
-func (s *VehicleService) GetTrips(ctx context.Context, vehicleID int64) ([]model.Trip, error) {
-	rows, err := s.q.GetTripsLast24Hours(ctx, vehicleID)
-	if err != nil {
-		return nil, err
-	}
-
-	trips := make([]model.Trip, len(rows))
-	for i, r := range rows {
-		trips[i] = model.Trip{
-			ID:        r.ID,
-			VehicleID: r.VehicleID,
-			StartTime: r.StartTime,
-			EndTime:   r.EndTime,
-			Mileage:   r.Mileage,
-			AvgSpeed:  r.AvgSpeed,
-		}
-	}
-	return trips, nil
-}
-
-func (s *VehicleService) IngestStatus(ctx context.Context, status model.VehicleStatus) error {
-	if status.VehicleID < 1 {
-		return errors.New("vehicle_id required")
-	}
-
-	// Marshal status to JSON
-	b, err := json.Marshal(status)
-	if err != nil {
-		return fmt.Errorf("json marshal: %w", err)
-	}
-
-	jsonStr := string(b)
-
-	if err := s.q.UpsertVehicleStatus(ctx, repository.UpsertVehicleStatusParams{
-		ID:      status.VehicleID,
-		Column2: jsonStr, // <- pass string, not []byte
-	}); err != nil {
+// IngestData processes new vehicle data, updating the database and cache.
+func (s *VehicleService) IngestData(ctx context.Context, data domain.IngestRequest) error {
+	// 1. Update the database (write-through)
+	if err := s.repo.UpdateVehicleStatus(ctx, data.VehicleID, data.Status); err != nil {
 		return err
 	}
 
-	// Cache in Redis
-	if err := s.rdb.Set(ctx, s.cacheKey(fmt.Sprint(status.VehicleID)), b, statusCacheTTL).Err(); err != nil {
-		return fmt.Errorf("redis set: %w", err)
-	}
+	// 2. Update the cache
+	return s.cache.SetStatus(ctx, data.VehicleID, &data.Status, CacheDuration)
+}
 
-	return nil
+// GetVehicleStatus retrieves the current status of a vehicle, trying the cache first.
+func (s *VehicleService) GetVehicleStatus(ctx context.Context, vehicleID uuid.UUID) (*domain.VehicleStatus, error) {
+	// Note: With a write-through cache, we can just read from the cache.
+	// If it were cache-aside, we'd have logic here to check the DB on a cache miss.
+	return s.cache.GetStatus(ctx, vehicleID)
+}
+
+// GetVehicleTrips retrieves the trip history for a vehicle in the last 24 hours.
+func (s *VehicleService) GetVehicleTrips(ctx context.Context, vehicleID uuid.UUID) ([]domain.Trip, error) {
+	since := time.Now().Add(-24 * time.Hour)
+	return s.repo.FindTripsByVehicleID(ctx, vehicleID, since)
 }

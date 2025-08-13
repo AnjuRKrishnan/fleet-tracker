@@ -2,19 +2,22 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 CREATE TABLE vehicle (
-    id BIGSERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     plate_number TEXT NOT NULL,
     last_status JSONB NOT NULL DEFAULT '{}'  -- default empty JSON object
 );
 
 CREATE TABLE trips (
-    id BIGSERIAL PRIMARY KEY,
-    vehicle_id BIGINT NOT NULL REFERENCES vehicle(id),
-    start_time TIMESTAMP NOT NULL,
-    end_time TIMESTAMP NOT NULL,
-    mileage DOUBLE PRECISION NOT NULL DEFAULT 0,
-    avg_speed DOUBLE PRECISION NOT NULL DEFAULT 0
+       id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    vehicle_id UUID NOT NULL REFERENCES vehicle(id) ON DELETE CASCADE,
+    start_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_time TIMESTAMP WITH TIME ZONE,
+    mileage FLOAT,
+    avg_speed FLOAT
 );
 
-CREATE INDEX IF NOT EXISTS idx_trips_vehicle_start_time
-  ON trips (vehicle_id, start_time DESC);
+--indexes
+
+CREATE INDEX idx_trips_vehicle_id ON trips(vehicle_id);
+
+CREATE INDEX idx_trips_start_time ON trips(start_time DESC);

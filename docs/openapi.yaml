@@ -1,0 +1,140 @@
+openapi: 3.0.0
+info:
+  title: Fleet Tracking API
+  version: 1.0.0
+  description: API for tracking a vehicle's location and trip history.
+servers:
+  - url: http://localhost:8080/api
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []
+
+paths:
+  /vehicle/ingest:
+    post:
+      summary: Ingest new vehicle data
+      description: Used by the simulated stream to push new vehicle status updates.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestRequest'
+      responses:
+        '202':
+          description: Data accepted for processing.
+        '400':
+          description: Invalid request body.
+        '401':
+          description: Unauthorized.
+
+  /vehicle/status:
+    get:
+      summary: Return current vehicle status
+      description: Retrieves the last known status of a vehicle. The result is cached for 5 minutes.
+      parameters:
+        - name: vehicle_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The UUID of the vehicle.
+      responses:
+        '200':
+          description: The current status of the vehicle.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehicleStatus'
+        '400':
+          description: Invalid vehicle_id format.
+        '401':
+          description: Unauthorized.
+        '404':
+          description: Vehicle status not found.
+
+  /vehicle/trips:
+    get:
+      summary: Return trip history for the past 24 hours
+      description: Fetches a list of trips completed by the vehicle in the last 24 hours.
+      parameters:
+        - name: vehicle_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: The UUID of the vehicle.
+      responses:
+        '200':
+          description: A list of recent trips.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Trip'
+        '400':
+          description: Invalid vehicle_id format.
+        '401':
+          description: Unauthorized.
+
+components:
+  schemas:
+    VehicleStatus:
+      type: object
+      properties:
+        location:
+          type: array
+          items:
+            type: number
+            format: float
+          example: [55.296249, 25.276987]
+        speed:
+          type: number
+          format: float
+          example: 60.5
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-06-17T09:12:00Z"
+    
+    IngestRequest:
+      type: object
+      properties:
+        vehicle_id:
+          type: string
+          format: uuid
+          example: "d9c1b442-fb2f-412a-9d2a-a3ab499cd91c"
+        status:
+          $ref: '#/components/schemas/VehicleStatus'
+
+    Trip:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        vehicle_id:
+          type: string
+          format: uuid
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        mileage:
+          type: number
+          format: float
+        avg_speed:
+          type: number
+          format: float

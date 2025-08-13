@@ -1,6 +1,6 @@
 -- name: UpsertVehicleStatus :exec
-INSERT INTO vehicle (id, last_status, updated_at)
-VALUES ($1, $2::jsonb, now());
+INSERT INTO vehicle (id, last_status)
+VALUES ($1, $2::jsonb);
 
 -- name: GetVehicleStatus :one
 SELECT last_status

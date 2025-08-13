@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      - POSTGRES_URL=postgres://root:secret@postgres:5433/postgres?sslmode=disable
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=secret
+      - SIMULATOR_ENABLED=true
+
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5433"
+    volumes:
+      - ./migrations:/docker-entrypoint-initdb.d
+
+  redis:
+    image: redis:6.2
+    ports:
+      - "6379:6379"

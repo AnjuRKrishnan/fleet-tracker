@@ -3,10 +3,12 @@
 //   sqlc v1.29.0
 // source: vehicle.sql
 
-package repository
+package db
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const createVehicle = `-- name: CreateVehicle :one
@@ -16,9 +18,9 @@ RETURNING id, plate_number, last_status
 `
 
 type CreateVehicleParams struct {
-	ID          int64  `json:"id"`
-	PlateNumber string `json:"plate_number"`
-	Column3     string `json:"column_3"`
+	ID          uuid.UUID `json:"id"`
+	PlateNumber string    `json:"plate_number"`
+	Column3     string    `json:"column_3"`
 }
 
 func (q *Queries) CreateVehicle(ctx context.Context, arg CreateVehicleParams) (Vehicle, error) {
@@ -47,7 +49,7 @@ FROM vehicle
 WHERE id = $1
 `
 
-func (q *Queries) GetVehicleStatus(ctx context.Context, id int64) (string, error) {
+func (q *Queries) GetVehicleStatus(ctx context.Context, id uuid.UUID) (string, error) {
 	row := q.db.QueryRowContext(ctx, getVehicleStatus, id)
 	var last_status string
 	err := row.Scan(&last_status)
@@ -90,13 +92,13 @@ func (q *Queries) ListVehicles(ctx context.Context, arg ListVehiclesParams) ([]V
 }
 
 const upsertVehicleStatus = `-- name: UpsertVehicleStatus :exec
-INSERT INTO vehicle (id, last_status, updated_at)
-VALUES ($1, $2::jsonb, now())
+INSERT INTO vehicle (id, last_status)
+VALUES ($1, $2::jsonb)
 `
 
 type UpsertVehicleStatusParams struct {
-	ID      int64  `json:"id"`
-	Column2 string `json:"column_2"`
+	ID      uuid.UUID `json:"id"`
+	Column2 string    `json:"column_2"`
 }
 
 func (q *Queries) UpsertVehicleStatus(ctx context.Context, arg UpsertVehicleStatusParams) error {

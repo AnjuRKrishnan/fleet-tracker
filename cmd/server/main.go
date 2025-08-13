@@ -2,86 +2,107 @@ package main
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
-	"log"
 	"net/http"
 	"os"
-	"strconv"
+	"os/signal"
+	"syscall"
 	"time"
 
-	"github.com/AnjuRKrishnan/fleet-tracker/internal/controllers"
-	"github.com/AnjuRKrishnan/fleet-tracker/internal/ingest"
-	"github.com/AnjuRKrishnan/fleet-tracker/internal/middleware"
-	"github.com/AnjuRKrishnan/fleet-tracker/internal/repository"
-	"github.com/AnjuRKrishnan/fleet-tracker/internal/services"
-
-	"github.com/go-redis/redis/v8"
-	"github.com/gorilla/mux"
-	"github.com/joho/godotenv"
-	_ "github.com/lib/pq"
+	"github.com/AnjuRKrishnan/fleet-tracker/internal/store/postgres"
+	"github.com/AnjuRKrishnan/fleet-tracker/internal/store/redis"
+	"github.com/AnjuRKrishnan/fleet-tracker/pkg/utils"
+	"github.com/go-chi/chi/v5"
+	"honnef.co/go/tools/config"
 )
 
 func main() {
-	_ = godotenv.Load()
+	// Initialize logger
+	zapLogger := logger.NewZapLogger()
+	defer zapLogger.Sync()
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-	dbURL := os.Getenv("DATABASE_URL")
-	redisAddr := os.Getenv("REDIS_ADDR")
-	jwtSecret := os.Getenv("JWT_SECRET")
-
-	dbConn, err := sql.Open("postgres", dbURL)
+	// Load Configuration
+	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("db open: %v", err)
+		zapLogger.Fatal("Could not load configuration", "error", err)
 	}
 
-	// ping with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := dbConn.PingContext(ctx); err != nil {
-		log.Fatalf("db ping: %v", err)
+	// Setup Database & Cache
+	db, err := postgres.NewPostgresDB(cfg.PostgresURL)
+	if err != nil {
+		zapLogger.Fatal("Could not connect to PostgreSQL", "error", err)
+	}
+	defer db.Close()
+
+	cache, err := redis.NewRedisCache(cfg.RedisURL)
+	if err != nil {
+		zapLogger.Fatal("Could not connect to Redis", "error", err)
 	}
 
-	rdb := redis.NewClient(&redis.Options{
-		Addr: redisAddr,
+	// Setup Repositories
+	vehicleRepo := postgres.NewVehicleRepository(db)
+	vehicleCache := redis.NewVehicleCache(cache)
+
+	// Setup Services
+	vehicleService := service.NewVehicleService(vehicleRepo, vehicleCache)
+
+	// Setup JWT Auth
+	jwtAuth := auth.NewJWTAuth(cfg.JWTSecret)
+
+	// Setup Handlers
+	vehicleHandler := handlers.NewVehicleHandler(vehicleService, zapLogger)
+
+	// Setup Router
+	r := chi.NewRouter()
+
+	// Middleware
+	r.Use(middleware.RequestLogger(zapLogger))
+
+	// Public routes (e.g., for generating a token if needed)
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
 	})
 
-	queries := repository.New(dbConn)
-	svc := services.NewVehicleService(queries, rdb)
-	ctl := controllers.NewVehicleController(svc)
+	// Private (authenticated) routes
+	r.Route("/api", func(r chi.Router) {
+		r.Use(middleware.JWTAuthenticator(jwtAuth))
+		r.Post("/vehicle/ingest", vehicleHandler.IngestData)
+		r.Get("/vehicle/status", vehicleHandler.GetStatus)
+		r.Get("/vehicle/trips", vehicleHandler.GetTrips)
+	})
 
-	r := mux.NewRouter()
-	// logging middleware
-	r.Use(controllers.LoggingMiddleware)
-	// jwt middleware applied to required routes
-	api := r.PathPrefix("/api").Subrouter()
-	api.Use(middleware.NewJWTMiddleware(jwtSecret).Middleware)
+	// Start server
+	server := &http.Server{
+		Addr:    ":8080",
+		Handler: r,
+	}
 
-	api.HandleFunc("/vehicle/status", ctl.GetStatusHandler).Methods("GET")
-	api.HandleFunc("/vehicle/trips", ctl.GetTripsHandler).Methods("GET")
-	api.HandleFunc("/vehicle/ingest", ctl.IngestHandler).Methods("POST")
-
-	simVehicleIDStr := os.Getenv("SIMULATOR_VEHICLE_ID")
-	var simVehicleID int64
-	if simVehicleIDStr != "" {
-		id, err := strconv.ParseInt(simVehicleIDStr, 10, 64)
-		if err != nil {
-			log.Fatalf("invalid SIMULATOR_VEHICLE_ID: %v", err)
+	go func() {
+		zapLogger.Info("Starting server on port 8080")
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			zapLogger.Fatal("Could not start server", "error", err)
 		}
-		simVehicleID = id
+	}()
+
+	// Start the simulated data stream and worker pool
+	if cfg.SimulatorEnabled {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		dataChannel := service.StartDataSimulator(ctx)
+		workerPool := service.NewWorkerPool(5, dataChannel, vehicleService, zapLogger)
+		utils.SafeGo(workerPool.Run, "WorkerPool")
 	}
 
-	go ingest.StartSimulator(svc, simVehicleID)
-	srv := &http.Server{
-		Handler:      r,
-		Addr:         ":" + port,
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
-	}
+	// Graceful shutdown
+	stopChan := make(chan os.Signal, 1)
+	signal.Notify(stopChan, syscall.SIGINT, syscall.SIGTERM)
+	<-stopChan
 
-	fmt.Printf("listening on %s\n", srv.Addr)
-	log.Fatal(srv.ListenAndServe())
+	zapLogger.Info("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := server.Shutdown(ctx); err != nil {
+		zapLogger.Fatal("Server shutdown failed", "error", err)
+	}
+	zapLogger.Info("Server stopped gracefully")
 }
