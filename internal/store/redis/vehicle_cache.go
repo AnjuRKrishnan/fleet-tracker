@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/AnjuRKrishnan/fleet-tracker/internal/domain"
-	"github.com/go-redis/redis/v5"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/google/uuid"
 )

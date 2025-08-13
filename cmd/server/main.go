@@ -8,11 +8,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/AnjuRKrishnan/fleet-tracker/internal/auth"
+	"github.com/AnjuRKrishnan/fleet-tracker/internal/config"
+	handlers "github.com/AnjuRKrishnan/fleet-tracker/internal/handler"
+	"github.com/AnjuRKrishnan/fleet-tracker/internal/middleware"
+	"github.com/AnjuRKrishnan/fleet-tracker/internal/services"
 	"github.com/AnjuRKrishnan/fleet-tracker/internal/store/postgres"
 	"github.com/AnjuRKrishnan/fleet-tracker/internal/store/redis"
+	"github.com/AnjuRKrishnan/fleet-tracker/pkg/logger"
 	"github.com/AnjuRKrishnan/fleet-tracker/pkg/utils"
 	"github.com/go-chi/chi/v5"
-	"honnef.co/go/tools/config"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -23,19 +29,19 @@ func main() {
 	// Load Configuration
 	cfg, err := config.Load()
 	if err != nil {
-		zapLogger.Fatal("Could not load configuration", "error", err)
+		zapLogger.Fatal("Could not load configuration", zap.Error(err))
 	}
 
 	// Setup Database & Cache
 	db, err := postgres.NewPostgresDB(cfg.PostgresURL)
 	if err != nil {
-		zapLogger.Fatal("Could not connect to PostgreSQL", "error", err)
+		zapLogger.Fatal("Could not connect to PostgreSQL", zap.Error(err))
 	}
 	defer db.Close()
 
 	cache, err := redis.NewRedisCache(cfg.RedisURL)
 	if err != nil {
-		zapLogger.Fatal("Could not connect to Redis", "error", err)
+		zapLogger.Fatal("Could not connect to Redis", zap.Error(err))
 	}
 
 	// Setup Repositories
@@ -43,7 +49,7 @@ func main() {
 	vehicleCache := redis.NewVehicleCache(cache)
 
 	// Setup Services
-	vehicleService := service.NewVehicleService(vehicleRepo, vehicleCache)
+	vehicleService := services.NewVehicleService(vehicleRepo, vehicleCache)
 
 	// Setup JWT Auth
 	jwtAuth := auth.NewJWTAuth(cfg.JWTSecret)
@@ -79,7 +85,7 @@ func main() {
 	go func() {
 		zapLogger.Info("Starting server on port 8080")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			zapLogger.Fatal("Could not start server", "error", err)
+			zapLogger.Fatal("Could not start server", zap.Error(err))
 		}
 	}()
 
@@ -87,8 +93,8 @@ func main() {
 	if cfg.SimulatorEnabled {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		dataChannel := service.StartDataSimulator(ctx)
-		workerPool := service.NewWorkerPool(5, dataChannel, vehicleService, zapLogger)
+		dataChannel := services.StartDataSimulator(ctx)
+		workerPool := services.NewWorkerPool(5, dataChannel, vehicleService, zapLogger)
 		utils.SafeGo(workerPool.Run, "WorkerPool")
 	}
 
@@ -102,7 +108,8 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := server.Shutdown(ctx); err != nil {
-		zapLogger.Fatal("Server shutdown failed", "error", err)
+		zapLogger.Fatal("Server shutdown failed", zap.Error(err))
 	}
 	zapLogger.Info("Server stopped gracefully")
+
 }

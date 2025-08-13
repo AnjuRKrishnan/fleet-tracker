@@ -11,11 +11,11 @@ import (
 )
 
 type VehicleHandler struct {
-	service *services.VehicleService
+	service services.VehicleServiceAPI
 	logger  *zap.Logger
 }
 
-func NewVehicleHandler(s *services.VehicleService, l *zap.Logger) *VehicleHandler {
+func NewVehicleHandler(s services.VehicleServiceAPI, l *zap.Logger) *VehicleHandler {
 	return &VehicleHandler{service: s, logger: l}
 }
 

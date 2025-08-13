@@ -72,17 +72,21 @@ func (wp *WorkerPool) Run() {
 }
 
 func (wp *WorkerPool) worker(id int) {
-	wp.logger.Info("Starting worker", "id", id)
+	wp.logger.Info("Starting worker", zap.Int("id", id))
 	for data := range wp.dataChan {
 		jsonData, _ := json.Marshal(data)
-		wp.logger.Info("Worker processing data", "worker_id", id, "data", string(jsonData))
+		wp.logger.Info("Worker processing data",
+			zap.Int("worker_id", id),
+			zap.String("data", string(jsonData)),
+		)
 
-		// In a real scenario, you'd extract a user ID or other claims from a context.
-		// For the simulator, we use a background context.
 		err := wp.service.IngestData(context.Background(), data)
 		if err != nil {
-			wp.logger.Error("Worker failed to process data", "worker_id", id, "error", err)
+			wp.logger.Error("Worker failed to process data",
+				zap.Int("worker_id", id),
+				zap.Error(err),
+			)
 		}
 	}
-	wp.logger.Info("Stopping worker", "id", id)
+	wp.logger.Info("Stopping worker", zap.Int("id", id))
 }

@@ -13,6 +13,13 @@ const (
 	CacheDuration = 5 * time.Minute
 )
 
+// VehicleServiceAPI defines the interface for vehicle service operations.
+type VehicleServiceAPI interface {
+	GetVehicleStatus(ctx context.Context, vehicleID uuid.UUID) (*domain.VehicleStatus, error)
+	IngestData(ctx context.Context, data domain.IngestRequest) error
+	GetVehicleTrips(ctx context.Context, vehicleID uuid.UUID) ([]domain.Trip, error)
+}
+
 // VehicleService encapsulates the business logic for vehicle operations.
 type VehicleService struct {
 	repo  domain.VehicleRepository
