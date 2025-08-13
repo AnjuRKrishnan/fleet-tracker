@@ -5,23 +5,20 @@
 package db
 
 import (
-	"database/sql"
-	"time"
-
-	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Trip struct {
-	ID        uuid.UUID       `json:"id"`
-	VehicleID uuid.UUID       `json:"vehicle_id"`
-	StartTime time.Time       `json:"start_time"`
-	EndTime   sql.NullTime    `json:"end_time"`
-	Mileage   sql.NullFloat64 `json:"mileage"`
-	AvgSpeed  sql.NullFloat64 `json:"avg_speed"`
+	ID        pgtype.UUID        `json:"id"`
+	VehicleID pgtype.UUID        `json:"vehicle_id"`
+	StartTime pgtype.Timestamptz `json:"start_time"`
+	EndTime   pgtype.Timestamptz `json:"end_time"`
+	Mileage   pgtype.Float8      `json:"mileage"`
+	AvgSpeed  pgtype.Float8      `json:"avg_speed"`
 }
 
 type Vehicle struct {
-	ID          uuid.UUID `json:"id"`
-	PlateNumber string    `json:"plate_number"`
-	LastStatus  string    `json:"last_status"`
+	ID          pgtype.UUID `json:"id"`
+	PlateNumber string      `json:"plate_number"`
+	LastStatus  string      `json:"last_status"`
 }

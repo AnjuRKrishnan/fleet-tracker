@@ -7,10 +7,8 @@ package db
 
 import (
 	"context"
-	"database/sql"
-	"time"
 
-	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getTripByID = `-- name: GetTripByID :one
@@ -19,8 +17,8 @@ FROM trips
 WHERE id = $1
 `
 
-func (q *Queries) GetTripByID(ctx context.Context, id uuid.UUID) (Trip, error) {
-	row := q.db.QueryRowContext(ctx, getTripByID, id)
+func (q *Queries) GetTripByID(ctx context.Context, id pgtype.UUID) (Trip, error) {
+	row := q.db.QueryRow(ctx, getTripByID, id)
 	var i Trip
 	err := row.Scan(
 		&i.ID,
@@ -41,8 +39,8 @@ WHERE vehicle_id = $1
 ORDER BY start_time DESC
 `
 
-func (q *Queries) GetTripsLast24Hours(ctx context.Context, vehicleID uuid.UUID) ([]Trip, error) {
-	rows, err := q.db.QueryContext(ctx, getTripsLast24Hours, vehicleID)
+func (q *Queries) GetTripsLast24Hours(ctx context.Context, vehicleID pgtype.UUID) ([]Trip, error) {
+	rows, err := q.db.Query(ctx, getTripsLast24Hours, vehicleID)
 	if err != nil {
 		return nil, err
 	}
@@ -62,9 +60,6 @@ func (q *Queries) GetTripsLast24Hours(ctx context.Context, vehicleID uuid.UUID) 
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -77,16 +72,16 @@ VALUES ($1, $2, $3, $4, $5, $6)
 `
 
 type InsertTripParams struct {
-	ID        uuid.UUID       `json:"id"`
-	VehicleID uuid.UUID       `json:"vehicle_id"`
-	StartTime time.Time       `json:"start_time"`
-	EndTime   sql.NullTime    `json:"end_time"`
-	Mileage   sql.NullFloat64 `json:"mileage"`
-	AvgSpeed  sql.NullFloat64 `json:"avg_speed"`
+	ID        pgtype.UUID        `json:"id"`
+	VehicleID pgtype.UUID        `json:"vehicle_id"`
+	StartTime pgtype.Timestamptz `json:"start_time"`
+	EndTime   pgtype.Timestamptz `json:"end_time"`
+	Mileage   pgtype.Float8      `json:"mileage"`
+	AvgSpeed  pgtype.Float8      `json:"avg_speed"`
 }
 
 func (q *Queries) InsertTrip(ctx context.Context, arg InsertTripParams) error {
-	_, err := q.db.ExecContext(ctx, insertTrip,
+	_, err := q.db.Exec(ctx, insertTrip,
 		arg.ID,
 		arg.VehicleID,
 		arg.StartTime,
@@ -101,18 +96,17 @@ const listTripsByVehicle = `-- name: ListTripsByVehicle :many
 SELECT id, vehicle_id, start_time, end_time, mileage, avg_speed
 FROM trips
 WHERE vehicle_id = $1
+AND start_time = $2 
 ORDER BY start_time DESC
-LIMIT $2 OFFSET $3
 `
 
 type ListTripsByVehicleParams struct {
-	VehicleID uuid.UUID `json:"vehicle_id"`
-	Limit     int32     `json:"limit"`
-	Offset    int32     `json:"offset"`
+	VehicleID pgtype.UUID        `json:"vehicle_id"`
+	StartTime pgtype.Timestamptz `json:"start_time"`
 }
 
 func (q *Queries) ListTripsByVehicle(ctx context.Context, arg ListTripsByVehicleParams) ([]Trip, error) {
-	rows, err := q.db.QueryContext(ctx, listTripsByVehicle, arg.VehicleID, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, listTripsByVehicle, arg.VehicleID, arg.StartTime)
 	if err != nil {
 		return nil, err
 	}
@@ -131,9 +125,6 @@ func (q *Queries) ListTripsByVehicle(ctx context.Context, arg ListTripsByVehicle
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

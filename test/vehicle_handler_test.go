@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/AnjuRKrishnan/fleet-tracker/internal/domain"
+	handler "github.com/AnjuRKrishnan/fleet-tracker/internal/handler"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -93,7 +94,7 @@ func TestVehicleHandler_GetStatus(t *testing.T) {
 			tc.setupMock(mockService)
 
 			// Using a nop logger for tests
-			handler := NewVehicleHandler(mockService, zap.NewNop())
+			handler := handler.NewVehicleHandler(mockService, zap.NewNop())
 
 			req := httptest.NewRequest("GET", "/api/vehicle/status?vehicle_id="+tc.vehicleID, nil)
 			rr := httptest.NewRecorder()

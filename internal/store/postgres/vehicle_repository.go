@@ -2,66 +2,69 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"time"
 
+	"github.com/AnjuRKrishnan/fleet-tracker/internal/db"
 	"github.com/AnjuRKrishnan/fleet-tracker/internal/domain"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type VehicleRepository struct {
-	db *sql.DB
+	q *db.Queries
 }
 
-func NewPostgresDB(databaseURL string) (*sql.DB, error) {
-	db, err := sql.Open("postgres", databaseURL)
-	if err != nil {
-		return nil, err
+// NewVehicleRepository creates a new repository.
+func NewVehicleRepository(dbtx db.DBTX) *VehicleRepository {
+	return &VehicleRepository{
+		q: db.New(dbtx),
 	}
-	if err = db.Ping(); err != nil {
-		return nil, err
-	}
-	return db, nil
 }
 
-func NewVehicleRepository(db *sql.DB) *VehicleRepository {
-	return &VehicleRepository{db: db}
-}
-
-func (r *VehicleRepository) UpdateVehicleStatus(ctx context.Context, vehicleID uuid.UUID, status domain.VehicleStatus) error {
+// UpdateVehicleStatus calls the generated method.
+func (r *VehicleRepository) UpdateVehicleStatus(ctx context.Context, vehicleID uuid.UUID, plateNumber string, status domain.VehicleStatus) error {
 	statusJSON, err := json.Marshal(status)
 	if err != nil {
 		return err
 	}
 
-	query := `UPDATE vehicle SET last_status = $1 WHERE id = $2`
-	_, err = r.db.ExecContext(ctx, query, statusJSON, vehicleID)
-	// In a real app, check if the vehicle exists and handle accordingly, e.g., by inserting it.
-	return err
+	// 5. Use the generated parameter struct from the 'db' package
+	params := db.UpsertVehicleStatusParams{
+		Column3:     string(statusJSON),
+		PlateNumber: plateNumber,
+		ID:          pgtype.UUID{Bytes: vehicleID, Valid: true},
+	}
+
+	return r.q.UpsertVehicleStatus(ctx, params)
 }
 
 func (r *VehicleRepository) FindTripsByVehicleID(ctx context.Context, vehicleID uuid.UUID, since time.Time) ([]domain.Trip, error) {
-	query := `
-		SELECT id, vehicle_id, start_time, end_time, mileage, avg_speed
-		FROM trips
-		WHERE vehicle_id = $1 AND start_time >= $2
-		ORDER BY start_time DESC
-	`
-	rows, err := r.db.QueryContext(ctx, query, vehicleID, since)
+	// Use the generated ListTripsByVehicleID method
+	dbTrips, err := r.q.ListTripsByVehicle(ctx, db.ListTripsByVehicleParams{
+		VehicleID: pgtype.UUID{Bytes: vehicleID, Valid: true},
+		StartTime: pgtype.Timestamptz{Time: since, Valid: true},
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var trips []domain.Trip
-	for rows.Next() {
-		var t domain.Trip
-		if err := rows.Scan(&t.ID, &t.VehicleID, &t.StartTime, &t.EndTime, &t.Mileage, &t.AvgSpeed); err != nil {
-			return nil, err
+	// Map the database models to our domain models
+	var domainTrips []domain.Trip
+	for _, dt := range dbTrips {
+		var endTime *time.Time
+		if dt.EndTime.Valid {
+			endTime = &dt.EndTime.Time
 		}
-		trips = append(trips, t)
+		domainTrips = append(domainTrips, domain.Trip{
+			ID:        dt.ID,
+			VehicleID: dt.VehicleID,
+			StartTime: dt.StartTime,
+			EndTime:   endTime,
+			Mileage:   dt.Mileage.Float64,
+			AvgSpeed:  dt.AvgSpeed.Float64,
+		})
 	}
 
-	return trips, nil
+	return domainTrips, nil
 }

@@ -1,6 +1,10 @@
 -- name: UpsertVehicleStatus :exec
-INSERT INTO vehicle (id, last_status)
-VALUES ($1, $2::jsonb);
+INSERT INTO vehicle (id, plate_number, last_status)
+VALUES ($1, $2, $3::JSONB)
+ON CONFLICT (id) DO UPDATE
+SET plate_number = EXCLUDED.plate_number,
+    last_status  = EXCLUDED.last_status;
+
 
 -- name: GetVehicleStatus :one
 SELECT last_status
@@ -9,7 +13,9 @@ WHERE id = $1;
 
 -- name: CreateVehicle :one
 INSERT INTO vehicle (id, plate_number, last_status)
-VALUES ($1, $2, $3::jsonb)
+VALUES ($1, $2, $3)
+ON CONFLICT (id) DO UPDATE
+SET last_status = EXCLUDED.last_status
 RETURNING *;
 
 -- name: GetVehicleByPlate :one

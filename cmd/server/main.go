@@ -18,6 +18,7 @@ import (
 	"github.com/AnjuRKrishnan/fleet-tracker/pkg/logger"
 	"github.com/AnjuRKrishnan/fleet-tracker/pkg/utils"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
 
@@ -32,12 +33,12 @@ func main() {
 		zapLogger.Fatal("Could not load configuration", zap.Error(err))
 	}
 
-	// Setup Database & Cache
-	db, err := postgres.NewPostgresDB(cfg.PostgresURL)
+	// Setup Database & Cache using pgxpool
+	dbpool, err := pgxpool.New(context.Background(), cfg.PostgresURL)
 	if err != nil {
 		zapLogger.Fatal("Could not connect to PostgreSQL", zap.Error(err))
 	}
-	defer db.Close()
+	defer dbpool.Close()
 
 	cache, err := redis.NewRedisCache(cfg.RedisURL)
 	if err != nil {
@@ -45,7 +46,7 @@ func main() {
 	}
 
 	// Setup Repositories
-	vehicleRepo := postgres.NewVehicleRepository(db)
+	vehicleRepo := postgres.NewVehicleRepository(dbpool)
 	vehicleCache := redis.NewVehicleCache(cache)
 
 	// Setup Services

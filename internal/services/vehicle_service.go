@@ -37,12 +37,13 @@ func NewVehicleService(repo domain.VehicleRepository, cache domain.VehicleCache)
 // IngestData processes new vehicle data, updating the database and cache.
 func (s *VehicleService) IngestData(ctx context.Context, data domain.IngestRequest) error {
 	// 1. Update the database (write-through)
-	if err := s.repo.UpdateVehicleStatus(ctx, data.VehicleID, data.Status); err != nil {
+	vehicleUUID := uuid.UUID(data.VehicleID.Bytes)
+	if err := s.repo.UpdateVehicleStatus(ctx, vehicleUUID, data.PlateNumber, data.Status); err != nil {
 		return err
 	}
 
 	// 2. Update the cache
-	return s.cache.SetStatus(ctx, data.VehicleID, &data.Status, CacheDuration)
+	return s.cache.SetStatus(ctx, data.VehicleID.Bytes, &data.Status, CacheDuration)
 }
 
 // GetVehicleStatus retrieves the current status of a vehicle, trying the cache first.

@@ -8,6 +8,7 @@ import (
 	"github.com/AnjuRKrishnan/fleet-tracker/internal/domain"
 	"github.com/AnjuRKrishnan/fleet-tracker/pkg/utils"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 )
 
@@ -27,7 +28,8 @@ func StartDataSimulator(ctx context.Context) <-chan domain.IngestRequest {
 			select {
 			case <-ticker.C:
 				data := domain.IngestRequest{
-					VehicleID: simulatedVehicleID,
+					VehicleID:   pgtype.UUID{Bytes: simulatedVehicleID, Valid: true},
+					PlateNumber: "KL01AB1234",
 					Status: domain.VehicleStatus{
 						Location:  []float64{55.296249, 25.276987}, // Example location
 						Speed:     60.5,

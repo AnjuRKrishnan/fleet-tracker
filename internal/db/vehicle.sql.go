@@ -8,23 +8,25 @@ package db
 import (
 	"context"
 
-	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createVehicle = `-- name: CreateVehicle :one
 INSERT INTO vehicle (id, plate_number, last_status)
-VALUES ($1, $2, $3::jsonb)
+VALUES ($1, $2, $3)
+ON CONFLICT (id) DO UPDATE
+SET last_status = EXCLUDED.last_status
 RETURNING id, plate_number, last_status
 `
 
 type CreateVehicleParams struct {
-	ID          uuid.UUID `json:"id"`
-	PlateNumber string    `json:"plate_number"`
-	Column3     string    `json:"column_3"`
+	ID          pgtype.UUID `json:"id"`
+	PlateNumber string      `json:"plate_number"`
+	LastStatus  string      `json:"last_status"`
 }
 
 func (q *Queries) CreateVehicle(ctx context.Context, arg CreateVehicleParams) (Vehicle, error) {
-	row := q.db.QueryRowContext(ctx, createVehicle, arg.ID, arg.PlateNumber, arg.Column3)
+	row := q.db.QueryRow(ctx, createVehicle, arg.ID, arg.PlateNumber, arg.LastStatus)
 	var i Vehicle
 	err := row.Scan(&i.ID, &i.PlateNumber, &i.LastStatus)
 	return i, err
@@ -37,7 +39,7 @@ WHERE plate_number = $1
 `
 
 func (q *Queries) GetVehicleByPlate(ctx context.Context, plateNumber string) (Vehicle, error) {
-	row := q.db.QueryRowContext(ctx, getVehicleByPlate, plateNumber)
+	row := q.db.QueryRow(ctx, getVehicleByPlate, plateNumber)
 	var i Vehicle
 	err := row.Scan(&i.ID, &i.PlateNumber, &i.LastStatus)
 	return i, err
@@ -49,8 +51,8 @@ FROM vehicle
 WHERE id = $1
 `
 
-func (q *Queries) GetVehicleStatus(ctx context.Context, id uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getVehicleStatus, id)
+func (q *Queries) GetVehicleStatus(ctx context.Context, id pgtype.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getVehicleStatus, id)
 	var last_status string
 	err := row.Scan(&last_status)
 	return last_status, err
@@ -69,7 +71,7 @@ type ListVehiclesParams struct {
 }
 
 func (q *Queries) ListVehicles(ctx context.Context, arg ListVehiclesParams) ([]Vehicle, error) {
-	rows, err := q.db.QueryContext(ctx, listVehicles, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, listVehicles, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -82,9 +84,6 @@ func (q *Queries) ListVehicles(ctx context.Context, arg ListVehiclesParams) ([]V
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -92,16 +91,20 @@ func (q *Queries) ListVehicles(ctx context.Context, arg ListVehiclesParams) ([]V
 }
 
 const upsertVehicleStatus = `-- name: UpsertVehicleStatus :exec
-INSERT INTO vehicle (id, last_status)
-VALUES ($1, $2::jsonb)
+INSERT INTO vehicle (id, plate_number, last_status)
+VALUES ($1, $2, $3::JSONB)
+ON CONFLICT (id) DO UPDATE
+SET plate_number = EXCLUDED.plate_number,
+    last_status  = EXCLUDED.last_status
 `
 
 type UpsertVehicleStatusParams struct {
-	ID      uuid.UUID `json:"id"`
-	Column2 string    `json:"column_2"`
+	ID          pgtype.UUID `json:"id"`
+	PlateNumber string      `json:"plate_number"`
+	Column3     string      `json:"column_3"`
 }
 
 func (q *Queries) UpsertVehicleStatus(ctx context.Context, arg UpsertVehicleStatusParams) error {
-	_, err := q.db.ExecContext(ctx, upsertVehicleStatus, arg.ID, arg.Column2)
+	_, err := q.db.Exec(ctx, upsertVehicleStatus, arg.ID, arg.PlateNumber, arg.Column3)
 	return err
 }

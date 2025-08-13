@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // Vehicle represents a vehicle in the system.
@@ -22,16 +23,17 @@ type VehicleStatus struct {
 
 // Trip represents a single journey made by a vehicle.
 type Trip struct {
-	ID        uuid.UUID  `json:"id"`
-	VehicleID uuid.UUID  `json:"vehicle_id"`
-	StartTime time.Time  `json:"start_time"`
-	EndTime   *time.Time `json:"end_time,omitempty"`
-	Mileage   float64    `json:"mileage"`
-	AvgSpeed  float64    `json:"avg_speed"`
+	ID        pgtype.UUID        `json:"id"`
+	VehicleID pgtype.UUID        `json:"vehicle_id"`
+	StartTime pgtype.Timestamptz `json:"start_time"`
+	EndTime   *time.Time         `json:"end_time,omitempty"`
+	Mileage   float64            `json:"mileage"`
+	AvgSpeed  float64            `json:"avg_speed"`
 }
 
 // IngestRequest is the structure for incoming data from the /ingest endpoint.
 type IngestRequest struct {
-	VehicleID uuid.UUID     `json:"vehicle_id"`
-	Status    VehicleStatus `json:"status"`
+	VehicleID   pgtype.UUID   `json:"vehicle_id"`
+	Status      VehicleStatus `json:"status"`
+	PlateNumber string        `json:"plate_number"`
 }
