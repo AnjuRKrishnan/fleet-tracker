@@ -1,0 +1,50 @@
+# Fleet-tracker Makefile (macOS / M1 ready)
+
+DB_URL=postgres://root:secret@localhost:5433/postgres?sslmode=disable
+MIGRATIONS_PATH=db/migrations
+
+# -----------------------------
+# Run server
+# -----------------------------
+run:
+	@echo "Starting server..."
+	@go run ./cmd/server
+
+# -----------------------------
+# Build binary
+# -----------------------------
+build:
+	@echo "Building server..."
+	@go build -o bin/server ./cmd/server
+
+# -----------------------------
+# Run tests
+# -----------------------------
+test:
+	@echo "Running tests..."
+	@go test ./... -v
+
+# -----------------------------
+# Migrations
+# -----------------------------
+migrate-up:
+	@echo "Applying migrations..."
+	@migrate -path $(MIGRATIONS_PATH) -database "$(DB_URL)" up
+
+migrate-down:
+	@echo "Rolling back last migration..."
+	@migrate -path $(MIGRATIONS_PATH) -database "$(DB_URL)" down 1
+
+
+migrate-drop:
+	@echo "Dropping all migrations..."
+	@migrate -path $(MIGRATIONS_PATH) -database "$(DB_URL)" drop -f
+	@echo "All migrations have been dropped!"
+
+
+# -----------------------------
+# Generate SQLC models
+# -----------------------------
+sqlc:
+	@echo "Generating SQLC models..."
+	@sqlc generate

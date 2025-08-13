@@ -1,0 +1,30 @@
+version: "1"
+packages:
+  - name: "repository"
+    path: "internal/repository"
+    engine: "postgresql"
+    schema: "db/migrations"
+    queries: "db/query"
+    emit_json_tags: true
+    emit_prepared_queries: false
+    emit_interface: false
+    sql_package: "database/sql"   # Must be database/sql for v1
+    overrides:
+      - db_type: "int4"
+        go_type: "int64"
+      - db_type: "int8"
+        go_type: "int64"
+      - db_type: "float4"
+        go_type: "float64"
+      - db_type: "float8"
+        go_type: "float64"
+      - db_type: "text"
+        go_type: "string"
+      - db_type: "varchar"
+        go_type: "string"
+      - db_type: "jsonb"
+        go_type: "string"   # or []byte if you want raw JSON
+      - db_type: "timestamp"
+        go_type: "time.Time"
+      - db_type: "timestamptz"
+        go_type: "time.Time"
