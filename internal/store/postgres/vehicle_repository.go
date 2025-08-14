@@ -68,3 +68,16 @@ func (r *VehicleRepository) FindTripsByVehicleID(ctx context.Context, vehicleID 
 
 	return domainTrips, nil
 }
+
+func (r *VehicleRepository) GetVehicleStatus(ctx context.Context, vehicleID uuid.UUID) (*domain.VehicleStatus, error) {
+	row, err := r.q.GetVehicleStatus(ctx, pgtype.UUID{Bytes: vehicleID, Valid: true})
+	if err != nil {
+		return nil, err
+	}
+	var status domain.VehicleStatus
+	if err := json.Unmarshal([]byte(row), &status); err != nil {
+		return nil, err
+	}
+
+	return &status, nil
+}
