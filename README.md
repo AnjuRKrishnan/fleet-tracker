@@ -47,3 +47,16 @@ EXPLAIN ANALYZE SELECT id, vehicle_id, start_time, end_time, mileage, avg_speed 
 ----------------------------------------------------------------------
 
 The output shows that the query planner correctly chose an **Index Scan** on `idx_trips_vehicle_id`, resulting in very fast execution.
+
+
+POSTMAN outputs:
+
+<img width="2582" height="984" alt="image" src="https://github.com/user-attachments/assets/b04b6deb-8763-41f9-8dae-c653421120ec" />
+
+<img width="1654" height="1328" alt="image" src="https://github.com/user-attachments/assets/31e0ea10-77de-49df-acf6-a2e38743948c" />
+
+<img width="2626" height="1280" alt="image" src="https://github.com/user-attachments/assets/57df6b45-1430-48d7-844f-14a080788dde" />
+
+
+
+
