@@ -42,14 +42,8 @@ EXPLAIN ANALYZE SELECT id, vehicle_id, start_time, end_time, mileage, avg_speed 
 
   QUERY PLAN
 ----------------------------------------------------------------------
-Bitmap Heap Scan on trips  (cost=4.18..12.67 rows=1 width=64) (actual time=0.014..0.015 rows=2 loops=1)
-"  Recheck Cond: (vehicle_id = '90f8aed2-06bd-4abd-bce5-691c92b0cca7'::uuid)"
-"  Filter: (start_time >= (now() - '24:00:00'::interval))"
-  Heap Blocks: exact=1
-  ->  Bitmap Index Scan on idx_trips_vehicle_id  (cost=0.00..4.18 rows=4 width=0) (actual time=0.006..0.006 rows=2 loops=1)
-"        Index Cond: (vehicle_id = '90f8aed2-06bd-4abd-bce5-691c92b0cca7'::uuid)"
-Planning Time: 0.175 ms
-Execution Time: 0.049 ms
+<img width="980" height="442" alt="image" src="https://github.com/user-attachments/assets/8edc17a9-925f-4bc9-a672-eed77c8a9bbf" />
+
 ----------------------------------------------------------------------
 
 The output shows that the query planner correctly chose an **Index Scan** on `idx_trips_vehicle_id`, resulting in very fast execution.
