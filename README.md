@@ -51,10 +51,16 @@ The output shows that the query planner correctly chose an **Index Scan** on `id
 
 POSTMAN outputs:
 
+1. api/vehicle/ingest
+
 <img width="2582" height="984" alt="image" src="https://github.com/user-attachments/assets/b04b6deb-8763-41f9-8dae-c653421120ec" />
 
 
-<img width="1654" height="1328" alt="image" src="https://github.com/user-attachments/assets/31e0ea10-77de-49df-acf6-a2e38743948c" />
+2. api/vehicle/status
+   
+<img width="1668" height="1394" alt="image" src="https://github.com/user-attachments/assets/c9fd7747-3c50-41ba-afdd-13b24477c474" />
+
+3.api/vehicle/trips
 
 <img width="2626" height="1280" alt="image" src="https://github.com/user-attachments/assets/57df6b45-1430-48d7-844f-14a080788dde" />
 
