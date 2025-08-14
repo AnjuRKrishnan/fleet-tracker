@@ -48,9 +48,18 @@ func (s *VehicleService) IngestData(ctx context.Context, data domain.IngestReque
 
 // GetVehicleStatus retrieves the current status of a vehicle, trying the cache first.
 func (s *VehicleService) GetVehicleStatus(ctx context.Context, vehicleID uuid.UUID) (*domain.VehicleStatus, error) {
-	// Note: With a write-through cache, we can just read from the cache.
-	// If it were cache-aside, we'd have logic here to check the DB on a cache miss.
-	return s.cache.GetStatus(ctx, vehicleID)
+	status, err := s.cache.GetStatus(ctx, vehicleID)
+	if status != nil || err != nil {
+		return status, err
+	}
+	// fallback to DB
+	status, err = s.repo.GetVehicleStatus(ctx, vehicleID)
+	if err != nil {
+		return nil, err
+	}
+	// optionally write back to cache
+	s.cache.SetStatus(ctx, vehicleID, status, time.Hour)
+	return status, nil
 }
 
 // GetVehicleTrips retrieves the trip history for a vehicle in the last 24 hours.

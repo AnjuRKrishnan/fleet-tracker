@@ -96,7 +96,7 @@ const listTripsByVehicle = `-- name: ListTripsByVehicle :many
 SELECT id, vehicle_id, start_time, end_time, mileage, avg_speed
 FROM trips
 WHERE vehicle_id = $1
-AND start_time = $2 
+AND start_time >= $2 
 ORDER BY start_time DESC
 `
 

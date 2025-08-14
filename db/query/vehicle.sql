@@ -7,7 +7,7 @@ SET plate_number = EXCLUDED.plate_number,
 
 
 -- name: GetVehicleStatus :one
-SELECT last_status
+SELECT id, plate_number, last_status
 FROM vehicle
 WHERE id = $1;
 

@@ -18,5 +18,5 @@ WHERE id = $1;
 SELECT *
 FROM trips
 WHERE vehicle_id = $1
-AND start_time = $2 
+AND start_time >= $2 
 ORDER BY start_time DESC;
