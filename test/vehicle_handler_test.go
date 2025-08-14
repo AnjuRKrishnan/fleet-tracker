@@ -1,6 +1,7 @@
 package test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -122,6 +123,79 @@ func TestVehicleHandler_GetTrips(t *testing.T) {
 
 			assert.Equal(t, tc.expectedStatusCode, rr.Code)
 			tc.validateBody(rr.Body.Bytes())
+			mockService.AssertExpectations(t)
+		})
+	}
+}
+
+func TestVehicleHandler_IngestData(t *testing.T) {
+	testVehicleUUID := uuid.New()
+	pgVehicleUUID := pgtype.UUID{Bytes: testVehicleUUID, Valid: true}
+
+	tests := []struct {
+		name               string
+		body               []byte
+		setupMock          func(m *MockVehicleService)
+		expectedStatusCode int
+		expectedBody       string
+	}{
+		{
+			name: "Success",
+			body: func() []byte {
+				req := domain.IngestRequest{
+					VehicleID: pgVehicleUUID,
+					Status: domain.VehicleStatus{
+						Speed: 50,
+					},
+				}
+				b, _ := json.Marshal(req)
+				return b
+			}(),
+			setupMock: func(m *MockVehicleService) {
+				m.On("IngestData", mock.Anything, mock.AnythingOfType("domain.IngestRequest")).Return(nil)
+			},
+			expectedStatusCode: http.StatusAccepted,
+			expectedBody:       "",
+		},
+		{
+			name:               "Invalid JSON",
+			body:               []byte(`{"vehicle_id":`), // malformed
+			setupMock:          func(m *MockVehicleService) {},
+			expectedStatusCode: http.StatusBadRequest,
+			expectedBody:       "Invalid request body\n",
+		},
+		{
+			name: "Service Error",
+			body: func() []byte {
+				req := domain.IngestRequest{
+					VehicleID: pgVehicleUUID,
+					Status: domain.VehicleStatus{
+						Speed: 80,
+					},
+				}
+				b, _ := json.Marshal(req)
+				return b
+			}(),
+			setupMock: func(m *MockVehicleService) {
+				m.On("IngestData", mock.Anything, mock.AnythingOfType("domain.IngestRequest")).Return(errors.New("db error"))
+			},
+			expectedStatusCode: http.StatusInternalServerError,
+			expectedBody:       "Failed to ingest data\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockService := new(MockVehicleService)
+			tc.setupMock(mockService)
+
+			h := handler.NewVehicleHandler(mockService, zap.NewNop())
+			req := httptest.NewRequest("POST", "/ingest", bytes.NewReader(tc.body))
+			rr := httptest.NewRecorder()
+			h.IngestData(rr, req)
+
+			assert.Equal(t, tc.expectedStatusCode, rr.Code)
+			assert.Equal(t, tc.expectedBody, rr.Body.String())
 			mockService.AssertExpectations(t)
 		})
 	}
