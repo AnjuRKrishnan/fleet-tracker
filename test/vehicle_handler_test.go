@@ -51,8 +51,7 @@ func ptrTime(t time.Time) *time.Time {
 
 func TestVehicleHandler_GetTrips(t *testing.T) {
 	testVehicleUUID := uuid.New()
-	var pgVehicleUUID pgtype.UUID
-	pgVehicleUUID = pgtype.UUID{Bytes: testVehicleUUID, Valid: true}
+	pgVehicleUUID := pgtype.UUID{Bytes: testVehicleUUID, Valid: true}
 
 	now := time.Now()
 	testTrips := []domain.Trip{
